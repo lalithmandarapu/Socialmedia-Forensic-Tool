@@ -1,7 +1,8 @@
 import tkinter as tk
-from tkinter import messagebox, font, PhotoImage
+from tkinter import messagebox, PhotoImage
 import threading
-import os
+import bcrypt
+import random
 
 from insta_scraper import InstagramScraperApp
 from google_scraper import main as google_main
@@ -9,109 +10,187 @@ from whatsapp import main as whatsapp_main
 from twitter import TwitterScraperApp
 from facebook import FacebookScraperApp
 
+
+class LoginWindow(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Login - Social Media Forensic Tool")
+        self.geometry("400x300")
+        self.configure(bg="white")
+        self.resizable(False, False)
+
+        self.stored_username = "admin"
+        self.stored_password_hash = bcrypt.hashpw("admin123".encode(), bcrypt.gensalt())
+
+        self.captcha_result = None
+        self._create_widgets()
+        self.generate_captcha()
+
+    def _create_widgets(self):
+        tk.Label(self, text="Login", font=("Helvetica", 18, "bold"), bg="white").pack(pady=10)
+
+        frame = tk.Frame(self, bg="white")
+        frame.pack(pady=10)
+
+        tk.Label(frame, text="Username:", bg="white").grid(row=0, column=0, sticky="e", pady=5)
+        self.username_entry = tk.Entry(frame)
+        self.username_entry.grid(row=0, column=1, pady=5)
+
+        tk.Label(frame, text="Password:", bg="white").grid(row=1, column=0, sticky="e", pady=5)
+        self.password_entry = tk.Entry(frame, show="*")
+        self.password_entry.grid(row=1, column=1, pady=5)
+
+        self.captcha_label = tk.Label(frame, text="", bg="white")
+        self.captcha_label.grid(row=2, column=0, columnspan=2, pady=5)
+
+        tk.Label(frame, text="Answer:", bg="white").grid(row=3, column=0, sticky="e")
+        self.captcha_entry = tk.Entry(frame)
+        self.captcha_entry.grid(row=3, column=1, pady=5)
+
+        self.login_button = tk.Button(self, text="Login", command=self.verify_login, bg="#3498db", fg="white")
+        self.login_button.pack(pady=10)
+
+    def generate_captcha(self):
+        a, b = random.randint(10, 99), random.randint(10, 99)
+        operation = random.choice(['+', '-'])
+        if operation == '+':
+            self.captcha_result = a + b
+        else:
+            self.captcha_result = a - b
+        self.captcha_label.config(text=f"What is {a} {operation} {b}?")
+
+    def verify_login(self):
+        username = self.username_entry.get()
+        password = self.password_entry.get()
+        captcha_answer = self.captcha_entry.get()
+
+        if username != self.stored_username:
+            messagebox.showerror("Error", "Invalid username.")
+            return
+
+        if not bcrypt.checkpw(password.encode(), self.stored_password_hash):
+            messagebox.showerror("Error", "Invalid password.")
+            return
+
+        try:
+            if int(captcha_answer) != self.captcha_result:
+                messagebox.showerror("Error", "Incorrect CAPTCHA.")
+                self.generate_captcha()
+                return
+        except:
+            messagebox.showerror("Error", "CAPTCHA must be a number.")
+            return
+
+        self.destroy()
+        app = MainApp()
+        app.mainloop()
+
+
+
 class RoundedButton(tk.Canvas):
-    def __init__(self, parent, width, height, cornerradius, padding, color, text, command=None):
-        tk.Canvas.__init__(self, parent, borderwidth=0, relief="flat", highlightthickness=0, bg=parent["bg"])
+    def __init__(self, parent, text, color, command=None, width=150, height=40, radius=20):
+        super().__init__(parent, width=width, height=height, bg=parent["bg"], highlightthickness=0)
+
         self.command = command
+        self.color = color
+        self.radius = radius
+        self.width = width
+        self.height = height
 
-        if cornerradius > 0.5 * width or cornerradius > 0.5 * height:
-            print("Error: cornerradius is too large.")
-            return None
+        self._draw_button()
+        self.create_text(width // 2, height // 2, text=text, fill="white", font=("Helvetica", 10, "bold"))
+        self.bind("<Button-1>", lambda event: self._on_click())
 
-        rad = 2 * cornerradius
-        def shape():
-            self.create_polygon((padding, height - cornerradius - padding, padding, cornerradius + padding, padding + cornerradius, padding, width - padding - cornerradius, padding, width - padding, cornerradius + padding, width - padding, height - cornerradius - padding, width - padding - cornerradius, height - padding, padding + cornerradius, height - padding), fill=color, outline=color)
-            self.create_arc((padding, padding + rad, padding + rad, padding), start=90, extent=90, fill=color, outline=color)
-            self.create_arc((width - padding - rad, padding, width - padding, padding + rad), start=0, extent=90, fill=color, outline=color)
-            self.create_arc((width - padding, height - rad - padding, width - padding - rad, height - padding), start=270, extent=90, fill=color, outline=color)
-            self.create_arc((padding, height - padding - rad, padding + rad, height - padding), start=180, extent=90, fill=color, outline=color)
-        
-        shape()
-        (x0, y0, x1, y1) = self.bbox("all")
-        self.configure(width=(x1 - x0), height=(y1 - y0))
-        self.bind("<ButtonPress-1>", self._on_press)
-        self.bind("<ButtonRelease-1>", self._on_release)
-        self.textid = self.create_text(width / 2, height / 2, text=text, fill='white', font=('Helvetica', '10', 'bold'))
+    def _draw_button(self):
+        r, w, h = self.radius, self.width, self.height
 
-    def _on_press(self, event):
-        self.configure(relief="sunken")
+        self.create_oval(0, 0, 2*r, 2*r, fill=self.color, outline=self.color)
+        self.create_oval(w-2*r, 0, w, 2*r, fill=self.color, outline=self.color)
+        self.create_oval(0, h-2*r, 2*r, h, fill=self.color, outline=self.color)
+        self.create_oval(w-2*r, h-2*r, w, h, fill=self.color, outline=self.color)
 
-    def _on_release(self, event):
-        self.configure(relief="raised")
+        self.create_rectangle(r, 0, w-r, h, fill=self.color, outline=self.color)
+        self.create_rectangle(0, r, w, h-r, fill=self.color, outline=self.color)
+
+    def _on_click(self):
         if self.command:
             self.command()
+
+# ---------------- MAIN APP ----------------
 
 class MainApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Social Media Forensic Tool")
-        self.geometry("600x500")
-        
-        # Load Background Image
-        self.bg_image = PhotoImage(file="background.png")  # Ensure the image is in the same folder
-        self.bg_label = tk.Label(self, image=self.bg_image)
-        self.bg_label.place(relwidth=1, relheight=1)  # Set background image to cover entire window
+        self.geometry("650x550")
+        self.resizable(False, False)
 
-        self.create_widgets()
+        try:
+            self.bg_image = PhotoImage(file="background.png")
+            self.bg_label = tk.Label(self, image=self.bg_image)
+            self.bg_label.place(relwidth=1, relheight=1)
+        except Exception as e:
+            print("Background image not loaded:", e)
+            self.configure(bg="white")
 
-    def create_widgets(self):
-        header = tk.Label(self, text="Social Media Forensic Tool", font=("Helvetica", 16, "bold"), bg='white', fg='#2c3e50')
-        header.pack(pady=20)
+        self._create_widgets()
+
+    def _create_widgets(self):
+        header = tk.Label(self, text="Social Media Forensic Tool", font=("Helvetica", 20, "bold"), bg='white', fg='#2c3e50')
+        header.pack(pady=30)
 
         button_frame = tk.Frame(self, bg='white')
-        button_frame.pack(pady=20)
+        button_frame.pack()
 
-        self.instagram_button = RoundedButton(button_frame, 150, 40, 10, 2, '#f56040', "Instagram", self.start_instagram)
-        self.instagram_button.grid(row=0, column=0, padx=20, pady=20)
+        buttons = [
+            ("Instagram", "#f56040", self.start_instagram),
+            ("Google", "#34a853", self.start_google),
+            ("WhatsApp", "#075e54", self.start_whatsapp),
+            ("Twitter", "#000000", self.start_twitter),
+            ("Facebook", "#3b5998", self.start_facebook)
+        ]
 
-        self.google_button = RoundedButton(button_frame, 150, 40, 10, 2, '#34a853', "Google", self.start_google)
-        self.google_button.grid(row=0, column=1, padx=20, pady=20)
+        for idx, (text, color, command) in enumerate(buttons):
+            btn = RoundedButton(button_frame, text=text, color=color, command=command)
+            btn.grid(row=idx // 2, column=idx % 2, padx=30, pady=20)
 
-        self.whatsapp_button = RoundedButton(button_frame, 150, 40, 10, 2, '#075e54', "WhatsApp", self.start_whatsapp)
-        self.whatsapp_button.grid(row=0, column=2, padx=20, pady=20)
-
-        self.twitter_button = RoundedButton(button_frame, 150, 40, 10, 2, '#000000', "Twitter", self.start_twitter)
-        self.twitter_button.grid(row=1, column=0, padx=20, pady=20)
-
-        self.facebook_button = RoundedButton(button_frame, 150, 40, 10, 2, '#3b5998', "Facebook", self.start_facebook)
-        self.facebook_button.grid(row=1, column=1, padx=20, pady=20)
-
-        self.quit_button = RoundedButton(self, 100, 40, 10, 2, '#95a5a6', "Quit", self.quit)
-        self.quit_button.pack(side=tk.BOTTOM, pady=20)
+        quit_btn = RoundedButton(self, text="Quit", color="#95a5a6", command=self.quit)
+        quit_btn.pack(pady=20)
 
     def start_instagram(self):
-        self.destroy()
-        instagram_app = InstagramScraperApp()
-        instagram_app.mainloop()
+        self._launch_app(InstagramScraperApp)
 
     def start_google(self):
-        threading.Thread(target=self.run_google_scraper).start()
+        self._run_in_thread(google_main, "Google")
 
     def start_whatsapp(self):
-        threading.Thread(target=self.run_whatsapp_scraper).start()
+        self._run_in_thread(whatsapp_main, "WhatsApp")
 
     def start_twitter(self):
-        self.destroy()
-        twitter_app = TwitterScraperApp()
-        twitter_app.mainloop()
-    
+        self._launch_app(TwitterScraperApp)
+
     def start_facebook(self):
+        self._launch_app(FacebookScraperApp)
+
+    def _launch_app(self, AppClass):
         self.destroy()
-        facebook_app = FacebookScraperApp()
-        facebook_app.mainloop()
+        app = AppClass()
+        app.mainloop()
 
-    def run_google_scraper(self):
-        try:
-            google_main()
-        except Exception as e:
-            messagebox.showerror("Error", f"Google scraping error: {str(e)}")
+    def _run_in_thread(self, func, name):
+        def task():
+            try:
+                func()
+            except Exception as e:
+                self._show_error(f"{name} scraping error: {str(e)}")
 
-    def run_whatsapp_scraper(self):
-        try:
-            whatsapp_main()
-        except Exception as e:
-            messagebox.showerror("Error", f"WhatsApp scraping error: {str(e)}")
+        threading.Thread(target=task, daemon=True).start()
+
+    def _show_error(self, message):
+        self.after(0, lambda: messagebox.showerror("Error", message))
+
+# ---------------- MAIN ----------------
 
 if __name__ == "__main__":
-    app = MainApp()
-    app.mainloop()
+    login = LoginWindow()
+    login.mainloop()
