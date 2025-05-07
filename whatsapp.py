@@ -14,57 +14,62 @@ from tkinter import messagebox
 def setup_driver():
     chrome_options = Options()
     chrome_options.add_argument("--start-maximized")
+    chrome_options.add_argument("--disable-notifications")
     service = Service(ChromeDriverManager().install())
     return webdriver.Chrome(service=service, options=chrome_options)
 
 def get_report_folder():
     base_path = os.path.dirname(os.path.abspath(__file__))
-    report_folder = os.path.join(base_path, "Whatsapp Report")
+    report_folder = os.path.join(base_path, "Whatsapp_Report")
     os.makedirs(report_folder, exist_ok=True)
     return report_folder
 
 class PDF(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 12)
-        self.cell(0, 10, 'WhatsApp Report', 0, 1, 'C')
+        self.cell(0, 10, 'WhatsApp Chat Report', 0, 1, 'C')
         self.ln(5)
-    
+
     def footer(self):
         self.set_y(-15)
         self.set_font('Arial', 'I', 8)
         self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
 
 def capture_chat_list(driver):
-    chats = WebDriverWait(driver, 20).until(
-        EC.presence_of_all_elements_located((By.XPATH, "//div[@aria-label='Chat list']//span[@title]"))
-    )
+    chats_xpath = "//div[@role='grid']//div[contains(@style, 'transform')]//span[@title]"
+    WebDriverWait(driver, 30).until(EC.presence_of_all_elements_located((By.XPATH, chats_xpath)))
+    chats = driver.find_elements(By.XPATH, chats_xpath)
     return [chat.get_attribute("title") for chat in chats[:10]]
 
 def extract_chat_messages(driver, chat_name):
-    try:
-        chat = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, f"//span[@title='{chat_name}']"))
-        )
-        chat.click()
-        time.sleep(2)
-        messages = driver.find_elements(By.XPATH, "//div[contains(@class, 'message-in') or contains(@class, 'message-out')]")
-        chat_content = []
-        for msg in messages:
+    chat_xpath = f"//span[@title='{chat_name}']"
+    WebDriverWait(driver, 15).until(EC.element_to_be_clickable((By.XPATH, chat_xpath))).click()
+    time.sleep(2)
+
+    messages_xpath = "//div[contains(@class, 'message-in') or contains(@class, 'message-out')]"
+    WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.XPATH, messages_xpath)))
+    messages = driver.find_elements(By.XPATH, messages_xpath)
+
+    chat_content = []
+    for msg in messages:
+        try:
             sender = "You" if "message-out" in msg.get_attribute("class") else chat_name
-            text = msg.text.strip()
+            text_elem = msg.find_element(By.XPATH, ".//span[contains(@class, 'selectable-text')]")
+            text = text_elem.text.strip()
             if text:
                 chat_content.append(f"{sender}: {text}")
-        return chat_content
-    except Exception as e:
-        print(f"Error extracting chat {chat_name}: {e}")
-        return []
+        except:
+            continue
+    return chat_content
 
-def create_pdf(chat_data, profile_pics, pdf_file):
+def create_pdf(chat_data, pdf_file):
     pdf = PDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
     for chat_name, messages in chat_data.items():
-        pdf.cell(0, 10, f"Chat: {chat_name}", ln=True, align='L')
+        pdf.set_font("Arial", 'B', 12)
+        pdf.cell(0, 10, f"Chat with {chat_name}", ln=True)
+        pdf.set_font("Arial", size=11)
         for msg in messages:
             pdf.multi_cell(0, 10, msg)
         pdf.ln(5)
@@ -74,33 +79,34 @@ def main():
     driver = setup_driver()
     report_folder = get_report_folder()
     pdf_file = os.path.join(report_folder, "whatsapp_report.pdf")
-    
+
     try:
         driver.get("https://web.whatsapp.com/")
-        print("Please scan the QR code to continue...")
+        print("Scan the QR code to log in...")
         WebDriverWait(driver, 160).until(
-            EC.presence_of_element_located((By.XPATH, "//div[@aria-label='Chat list']"))
+            EC.presence_of_element_located((By.XPATH, "//div[@role='grid']"))
         )
-        print("QR code scanned successfully!")
-        
+        print("Logged in successfully!")
+
         chat_list = capture_chat_list(driver)
-        print(f"Chats Found: {chat_list}")
-        
+        print(f"Chats found: {chat_list}")
+
         chat_data = {}
         for chat in chat_list:
+            print(f"Extracting chat: {chat}")
             chat_data[chat] = extract_chat_messages(driver, chat)
-        
-        create_pdf(chat_data, [], pdf_file)
-        print("PDF report generated successfully!")
-        
+
+        create_pdf(chat_data, pdf_file)
+        print("PDF report created successfully.")
+
     except Exception as e:
-        print(f"An error occurred: {e}")
+        print(f"Error: {e}")
+
     finally:
         driver.quit()
-        
         root = tk.Tk()
         root.withdraw()
-        messagebox.showinfo("Success", "WhatsApp data extraction completed successfully!")
+        messagebox.showinfo("WhatsApp Scraper", "Data extraction complete!")
         os.startfile(report_folder)
 
 if __name__ == "__main__":
