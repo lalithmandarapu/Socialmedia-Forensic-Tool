@@ -1,43 +1,46 @@
-# 🔍 Social Media Forensic Tool
+# 📊 Social Media Forensic Tool
 
-A Python-based GUI application that performs social media scraping with a secure login system. The tool supports scraping from platforms like Instagram, Google, WhatsApp, Twitter, and Facebook. It features a login system with hashed passwords and a custom CAPTCHA using two-digit math problems (addition and subtraction) to enhance security.
+A powerful forensic tool designed to extract and analyze user data from major social media platforms including **Facebook**, **WhatsApp**, **Instagram**, **Google**, and **Twitter**. This tool helps in the investigation of user behavior, friend connections, and content interactions by creating structured reports with screenshots and data exports.
 
 ---
 
 ## 🚀 Features
 
-- 🔐 **Secure Login System**
-  - Passwords are hashed using bcrypt
-  - CAPTCHA with two-digit addition or subtraction
-- 🧩 **Modular Platform Integration**
-  - Instagram
-  - Google
-  - WhatsApp
-  - Twitter
-  - Facebook
-- 🧵 **Threaded Execution**
-  - Prevents GUI freezing during scraping
-- 🎨 **Custom GUI**
-  - Built using `tkinter`
-  - Custom rounded buttons
-  - Optional background image
+| Platform   | Features                                                                 |
+|------------|--------------------------------------------------------------------------|
+| **Facebook** | Login automation, screenshot capture (homepage/profile), friend list extraction, PDF report generation |
+| **WhatsApp** | Chat export parsing (from `.txt`), contact extraction, date-wise message analysis |
+| **Instagram** | Follower/following scraping, profile picture capture, PDF generation |
+| **Google** | Search history extraction, PDF report of queries and timestamps (requires access to user data export) |
+| **Twitter** | Tweet scraping (latest tweets), follower list, screenshots, PDF summary |
 
 ---
 
-## 📦 Requirements
+## 🔐 Security Features
 
-- Python 3.x
-- Libraries:
-  - `bcrypt`
-  - `tkinter` (built-in with Python)
-- Custom scraper modules:
-  - `insta_scraper.py`
-  - `google_scraper.py`
-  - `whatsapp.py`
-  - `twitter.py`
-  - `facebook.py`
+- Password fields are masked.
+- PDF reports are encrypted with user-defined passwords using `PyPDF2`.
+- No sensitive information is stored or logged permanently.
+- HTTPS-based automated login to ensure encrypted transmission.
+- Folder structure is secured and created per-user session.
 
-Install required external packages:
+---
+
+## 🛠️ Installation
+
+### ✅ Requirements
+
+- Python 3.7 or higher
+- Google Chrome browser (latest version)
+- ChromeDriver (automatically handled by `webdriver-manager`)
+
+### 📦 Dependencies
+
+Install all required Python packages:
 
 ```bash
-pip install bcrypt
+pip install selenium
+pip install webdriver-manager
+pip install fpdf
+pip install cryptography
+pip install PyPDF2
